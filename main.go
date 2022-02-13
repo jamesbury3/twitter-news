@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -42,7 +40,7 @@ func main() {
 	viper.AddConfigPath(".")
 	err := viper.ReadInConfig()
 	if err != nil {
-		log.Fatal(fmt.Errorf("error reading config yaml file: %w \n", err))
+		log.Fatal(fmt.Errorf("error reading config yaml file: %w", err))
 	}
 
 	encoded_url := url.QueryEscape(query)
@@ -72,20 +70,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("error unmarshalling json: %s", err)
 	}
-
-	file, err := os.Create("./datafile.json")
-	if err != nil {
-		log.Fatalf("unable to create datafile.json: %s", err)
-	}
-
-	buf := bytes.Buffer{}
-	enc := json.NewEncoder(&buf)
-	err = enc.Encode(tweetData)
-	if err != nil {
-		log.Fatalf("error encoding tweet data to bytes: ", err)
-	}
-	file.Write(buf.Bytes())
-	fmt.Println("Wrote tweet data to file.")
 
 	unique_tweets := map[string]bool{}
 
