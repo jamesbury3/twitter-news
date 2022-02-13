@@ -1,101 +1,53 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
+	"just_news/configuration"
+	"just_news/models"
+	twitterservice "just_news/twitter_service"
 	"log"
-	"net/http"
-	"net/url"
 	"strings"
-
-	"github.com/spf13/viper"
 )
-
-var searchUrl string = "https://api.twitter.com/2/tweets/search/recent?max_results=100&tweet.fields=entities&query="
-var query string = "news (nc OR unitedstates OR usa OR world OR science OR math OR space OR tech OR technology) lang:en -is:retweet is:verified"
-
-type tweet_url struct {
-	ExpandedUrl string `json:"expanded_url"`
-}
-
-type entities struct {
-	Urls []tweet_url `json:"urls"`
-}
-
-type tweet struct {
-	Entities entities `json:"entities"`
-	Lang     string   `json:"lang"`
-	Text     string   `json:"text"`
-	Id       string   `json:"id"`
-}
-
-type responseData struct {
-	Tweets []tweet `json:"data"`
-}
 
 func main() {
 
-	viper.SetConfigName("config")
-	viper.AddConfigPath(".")
-	err := viper.ReadInConfig()
+	err := configuration.Init()
 	if err != nil {
-		log.Fatal(fmt.Errorf("error reading config yaml file: %w", err))
+		log.Fatalf("error initializing configuration: %s", err)
 	}
 
-	encoded_url := url.QueryEscape(query)
-	full_url := searchUrl + encoded_url
-	client := &http.Client{}
-
-	fmt.Printf("Using url: %s\n", full_url)
-	request, err := http.NewRequest(http.MethodGet, full_url, nil)
+	tweet_data, err := twitterservice.Search()
 	if err != nil {
-		log.Fatalf("error creating GET request: %s", err)
+		log.Fatal(err)
 	}
 
-	request.Header.Add("Authorization", "Bearer "+viper.GetString("token"))
+	print_tweets(tweet_data)
+}
 
-	resp, err := client.Do(request)
-	if err != nil {
-		log.Fatalf("error sending get request: %s", err)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalf("Error reading body: %s", err)
-	}
-
-	var tweetData responseData = responseData{}
-	err = json.Unmarshal(body, &tweetData)
-	if err != nil {
-		log.Fatalf("error unmarshalling json: %s", err)
-	}
+func print_tweets(tweet_data models.ResponseData) {
 
 	unique_tweets := map[string]bool{}
 
-	for _, tweet := range tweetData.Tweets {
+	for _, tweet := range tweet_data.Tweets {
 
 		formatted_tweet_text := strings.Split(tweet.Text, "https://t.co")[0]
 
 		if !unique_tweets[formatted_tweet_text] {
 			unique_tweets[formatted_tweet_text] = true
-		} else {
-			continue
+
+			fmt.Printf("======================\n%s\n", formatted_tweet_text)
+
+			urls := []string{}
+
+			for _, url := range tweet.Entities.Urls {
+				urls = append(urls, url.ExpandedUrl)
+			}
+
+			if len(urls) > 0 {
+				fmt.Printf("\n\tUrls: %s\n", strings.Join(urls, ", "))
+			}
+
+			fmt.Printf("======================\n")
 		}
-
-		fmt.Printf("======================\n%s\n", formatted_tweet_text)
-
-		urls := []string{}
-
-		for _, url := range tweet.Entities.Urls {
-			urls = append(urls, url.ExpandedUrl)
-		}
-
-		if len(urls) > 0 {
-			fmt.Printf("\n\tUrls: %s\n", strings.Join(urls, ", "))
-		}
-
-		fmt.Printf("======================\n")
 	}
-
 }
